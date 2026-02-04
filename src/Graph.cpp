@@ -29,18 +29,6 @@ using namespace std;
     }
 
     Eigen::MatrixXd Graph::getDegree() const {
-        // Eigen::MatrixXd degreeMatrix; 
-        // degreeMatrix.resize(n, n);
-        // degreeMatrix.setZero();
-
-        // for(int i = 0; i < n; i++) {
-        //         for(int j = i; j < n; j++) {
-        //             if(adj(i, j) == 1) {
-        //             degreeMatrix(i, i) = degreeMatrix(i, i) + 1;
-        //             degreeMatrix(j, j) = degreeMatrix(j, j) + 1;} 
-        //         }
-        // }
-
         VectorXd degrees = adj.rowwise().sum();
 
         return degrees.asDiagonal();
