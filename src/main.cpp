@@ -19,14 +19,12 @@ int main() {
     else cout << "Status: DISCONNECTED" << endl;
 
     // --- Test 2: Bridge Graph ---
-    cout << "\nGenerating Bridge Graph (N=10)..." << endl; // Fixed typo here
+    cout << "\nGenerating Bridge Graph (N=10)..." << endl; 
     
-    // FIX IS HERE: We reuse 'g', we don't declare 'Graph g' again
     g = Graph::createBridgeGraph(N); 
     
     g.printGraph();
     
-    // We can reuse the 'fiedler' double variable too
     fiedler = g.getFiedlerValue();
     cout << "Fiedler Value: " << fiedler << endl;
     
