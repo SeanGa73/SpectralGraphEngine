@@ -14,7 +14,7 @@ mkdir build
 cd build
 cmake ..
 make
-./SpectralSolver
+./SpectralSolver ```
 
 ## Example Outputs
 Generating Hub Graph (N=10)...
