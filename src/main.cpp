@@ -1,35 +1,29 @@
 #include <iostream>
+
 #include "Graph.h"
 
 using namespace std;
 
-int main() {
-    int N = 10;
-    
-    // --- Test 1: Hub Graph ---
-    cout << "Generating Hub Graph (N=10)..." << endl;
-    Graph g = Graph::createHubGraph(N, 0.2, 0.0, 0.9);
-    
-    g.printGraph();
-    
-    double fiedler = g.getFiedlerValue();
-    cout << "Fiedler Value: " << fiedler << endl;
-    
-    if(fiedler > 0) cout << "Status: CONNECTED" << endl;
-    else cout << "Status: DISCONNECTED" << endl;
+namespace {
 
-    // --- Test 2: Bridge Graph ---
-    cout << "\nGenerating Bridge Graph (N=10)..." << endl; 
-    
-    g = Graph::createBridgeGraph(N); 
-    
+void report(const Graph& g) {
     g.printGraph();
-    
-    fiedler = g.getFiedlerValue();
-    cout << "Fiedler Value: " << fiedler << endl;
-    
-    if(fiedler > 0) cout << "Status: CONNECTED" << endl;
-    else cout << "Status: DISCONNECTED" << endl;
+    cout << "Fiedler Value: " << g.getFiedlerValue() << endl;
+    cout << "Status: " << (g.isConnected() ? "CONNECTED" : "DISCONNECTED") << endl;
+}
+
+}  // namespace
+
+int main() {
+    const int N = 10;
+
+    // --- Example 1: Hub Graph ---
+    cout << "Generating Hub Graph (N=10)..." << endl;
+    report(Graph::createHubGraph(N, 0.2, 0.0, 0.9));
+
+    // --- Example 2: Bridge Graph ---
+    cout << "\nGenerating Bridge Graph (N=10)..." << endl;
+    report(Graph::createBridgeGraph(N));
 
     return 0;
 }

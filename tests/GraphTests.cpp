@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <cmath>
-#include <string>
-
 #include <Eigen/Dense>
+#include <cmath>
+#include <stdexcept>
+#include <string>
 
 #include "Graph.h"
 
@@ -15,14 +15,6 @@ namespace {
 
 const double kTol = 1e-9;
 const double kPi = std::acos(-1.0);
-
-bool hasEdge(const Graph& g, int u, int v) {
-    return g.getLaplacian()(u, v) == -1.0;
-}
-
-int edgeCount(const Graph& g) {
-    return static_cast<int>(std::lround(g.getDegree().trace() / 2.0));
-}
 
 VectorXd laplacianEigenvalues(const Graph& g) {
     SelfAdjointEigenSolver<MatrixXd> es(g.getLaplacian());
@@ -65,9 +57,13 @@ TEST(GraphConstruction, StoresNodeCount) {
     EXPECT_EQ(Graph(7).getN(), 7);
 }
 
+TEST(GraphConstruction, NegativeSizeThrows) {
+    EXPECT_THROW(Graph(-1), std::invalid_argument);
+}
+
 TEST(GraphConstruction, NewGraphHasNoEdges) {
     Graph g(5);
-    EXPECT_EQ(edgeCount(g), 0);
+    EXPECT_EQ(g.edgeCount(), 0);
     EXPECT_TRUE(g.getLaplacian().isZero());
     EXPECT_TRUE(g.getDegree().isZero());
 }
@@ -87,10 +83,10 @@ TEST(GraphConstruction, MatricesHaveCorrectDimensions) {
 TEST(AddEdge, IsUndirected) {
     Graph g(3);
     g.addEdge(0, 2);
-    EXPECT_TRUE(hasEdge(g, 0, 2));
-    EXPECT_TRUE(hasEdge(g, 2, 0));
-    EXPECT_FALSE(hasEdge(g, 0, 1));
-    EXPECT_FALSE(hasEdge(g, 1, 2));
+    EXPECT_TRUE(g.hasEdge(0, 2));
+    EXPECT_TRUE(g.hasEdge(2, 0));
+    EXPECT_FALSE(g.hasEdge(0, 1));
+    EXPECT_FALSE(g.hasEdge(1, 2));
 }
 
 TEST(AddEdge, DuplicateEdgeIsIdempotent) {
@@ -98,45 +94,66 @@ TEST(AddEdge, DuplicateEdgeIsIdempotent) {
     g.addEdge(0, 1);
     g.addEdge(0, 1);
     g.addEdge(1, 0);
-    EXPECT_EQ(edgeCount(g), 1);
+    EXPECT_EQ(g.edgeCount(), 1);
     EXPECT_DOUBLE_EQ(g.getDegree()(0, 0), 1.0);
 }
 
-TEST(AddEdge, SelfLoopIsRejected) {
+TEST(AddEdge, SelfLoopThrows) {
     Graph g(3);
-    testing::internal::CaptureStderr();
-    g.addEdge(1, 1);
-    std::string err = testing::internal::GetCapturedStderr();
-    EXPECT_EQ(edgeCount(g), 0);
-    EXPECT_NE(err.find("Invalid edge"), std::string::npos);
+    EXPECT_THROW(g.addEdge(1, 1), std::invalid_argument);
+    EXPECT_EQ(g.edgeCount(), 0);
 }
 
-TEST(AddEdge, OutOfRangeIndexIsRejected) {
+TEST(AddEdge, OutOfRangeIndexThrows) {
     Graph g(3);
-    testing::internal::CaptureStderr();
-    g.addEdge(0, 3);
-    g.addEdge(3, 0);
-    g.addEdge(10, 20);
-    std::string err = testing::internal::GetCapturedStderr();
-    EXPECT_EQ(edgeCount(g), 0);
-    EXPECT_NE(err.find("Invalid edge"), std::string::npos);
+    EXPECT_THROW(g.addEdge(0, 3), std::invalid_argument);
+    EXPECT_THROW(g.addEdge(3, 0), std::invalid_argument);
+    EXPECT_THROW(g.addEdge(10, 20), std::invalid_argument);
+    EXPECT_EQ(g.edgeCount(), 0);
 }
 
-TEST(AddEdge, NegativeIndexIsRejected) {
+TEST(AddEdge, NegativeIndexThrows) {
     Graph g(3);
-    testing::internal::CaptureStderr();
-    g.addEdge(-1, 0);
-    g.addEdge(0, -1);
-    std::string err = testing::internal::GetCapturedStderr();
-    EXPECT_EQ(edgeCount(g), 0);
-    EXPECT_NE(err.find("Invalid edge"), std::string::npos);
+    EXPECT_THROW(g.addEdge(-1, 0), std::invalid_argument);
+    EXPECT_THROW(g.addEdge(0, -1), std::invalid_argument);
+    EXPECT_EQ(g.edgeCount(), 0);
 }
 
-TEST(AddEdge, ValidEdgeProducesNoWarning) {
+TEST(AddEdge, ValidEdgeProducesNoOutput) {
     Graph g(3);
     testing::internal::CaptureStderr();
     g.addEdge(0, 1);
     EXPECT_TRUE(testing::internal::GetCapturedStderr().empty());
+}
+
+// ---------------------------------------------------------------------------
+// Queries: hasEdge, degree, edgeCount
+// ---------------------------------------------------------------------------
+
+TEST(Queries, DegreeMatchesDegreeMatrix) {
+    Graph g = Graph::createHubGraph(12, 0.3, 0.2, 0.8, 7);
+    MatrixXd D = g.getDegree();
+    for (int i = 0; i < g.getN(); i++) EXPECT_EQ(g.degree(i), D(i, i));
+}
+
+TEST(Queries, EdgeCountIsHalfDegreeSum) {
+    Graph g = Graph::createRandomGraph(20, 0.4, 3);
+    int degreeSum = 0;
+    for (int i = 0; i < g.getN(); i++) degreeSum += g.degree(i);
+    EXPECT_EQ(g.edgeCount() * 2, degreeSum);
+}
+
+TEST(Queries, OutOfRangeNodeThrows) {
+    Graph g(3);
+    EXPECT_THROW(g.hasEdge(0, 3), std::out_of_range);
+    EXPECT_THROW(g.hasEdge(-1, 0), std::out_of_range);
+    EXPECT_THROW(g.degree(3), std::out_of_range);
+    EXPECT_THROW(g.degree(-1), std::out_of_range);
+}
+
+TEST(Queries, NodeHasNoEdgeToItself) {
+    Graph g = Graph::createConnectedGraph(4);
+    for (int i = 0; i < 4; i++) EXPECT_FALSE(g.hasEdge(i, i));
 }
 
 // ---------------------------------------------------------------------------
@@ -186,9 +203,11 @@ TEST(Laplacian, EqualsDegreeMinusAdjacency) {
     g.addEdge(0, 1);
     g.addEdge(1, 2);
     MatrixXd expected(3, 3);
-    expected << 1, -1, 0,
-               -1, 2, -1,
-                0, -1, 1;
+    // clang-format off
+    expected <<  1, -1,  0,
+                -1,  2, -1,
+                 0, -1,  1;
+    // clang-format on
     EXPECT_TRUE(g.getLaplacian().isApprox(expected));
 }
 
@@ -330,29 +349,73 @@ TEST(FiedlerValue, IsInvariantUnderRelabelling) {
 }
 
 // ---------------------------------------------------------------------------
+// isConnected
+// ---------------------------------------------------------------------------
+
+TEST(IsConnected, TrivialGraphsAreConnected) {
+    EXPECT_TRUE(Graph(0).isConnected());
+    EXPECT_TRUE(Graph(1).isConnected());
+}
+
+TEST(IsConnected, MatchesComponentCount) {
+    EXPECT_TRUE(Graph::createPath(10).isConnected());
+    EXPECT_TRUE(Graph::createBridgeGraph(10).isConnected());
+    EXPECT_FALSE(Graph(2).isConnected());
+
+    Graph g(6);
+    g.addEdge(0, 1);
+    g.addEdge(1, 2);
+    g.addEdge(3, 4);
+    g.addEdge(4, 5);
+    EXPECT_FALSE(g.isConnected());
+    g.addEdge(2, 3);
+    EXPECT_TRUE(g.isConnected());
+}
+
+TEST(IsConnected, IgnoresRoundingNoiseOnDisconnectedGraphs) {
+    // Two dense components: lambda_2 is zero in exact arithmetic but may come
+    // back as a tiny nonzero value, which must not be read as "connected".
+    for (int n = 4; n <= 40; n += 6) {
+        SCOPED_TRACE("n = " + std::to_string(n));
+        Graph g(n);
+        for (int i = 0; i < n / 2; i++)
+            for (int j = 0; j < i; j++) g.addEdge(i, j);
+        for (int i = n / 2; i < n; i++)
+            for (int j = n / 2; j < i; j++) g.addEdge(i, j);
+        EXPECT_FALSE(g.isConnected());
+    }
+}
+
+TEST(IsConnected, ToleranceIsRespected) {
+    Graph g = Graph::createPath(50);  // lambda_2 ~= 0.0039
+    EXPECT_TRUE(g.isConnected());
+    EXPECT_FALSE(g.isConnected(0.01));
+}
+
+// ---------------------------------------------------------------------------
 // Generators: deterministic
 // ---------------------------------------------------------------------------
 
 TEST(CreatePath, HasConsecutiveEdgesOnly) {
     Graph g = Graph::createPath(6);
     EXPECT_EQ(g.getN(), 6);
-    EXPECT_EQ(edgeCount(g), 5);
-    for (int i = 0; i < 5; i++) EXPECT_TRUE(hasEdge(g, i, i + 1));
-    EXPECT_FALSE(hasEdge(g, 0, 5));
+    EXPECT_EQ(g.edgeCount(), 5);
+    for (int i = 0; i < 5; i++) EXPECT_TRUE(g.hasEdge(i, i + 1));
+    EXPECT_FALSE(g.hasEdge(0, 5));
     EXPECT_DOUBLE_EQ(g.getDegree()(0, 0), 1.0);
     EXPECT_DOUBLE_EQ(g.getDegree()(5, 5), 1.0);
     for (int i = 1; i < 5; i++) EXPECT_DOUBLE_EQ(g.getDegree()(i, i), 2.0);
 }
 
 TEST(CreatePath, DegenerateSizes) {
-    EXPECT_EQ(edgeCount(Graph::createPath(1)), 0);
-    EXPECT_EQ(edgeCount(Graph::createPath(0)), 0);
+    EXPECT_EQ(Graph::createPath(1).edgeCount(), 0);
+    EXPECT_EQ(Graph::createPath(0).edgeCount(), 0);
 }
 
 TEST(CreateCycle, IsTwoRegularWithClosingEdge) {
     Graph g = Graph::createCycle(7);
-    EXPECT_EQ(edgeCount(g), 7);
-    EXPECT_TRUE(hasEdge(g, 0, 6));
+    EXPECT_EQ(g.edgeCount(), 7);
+    EXPECT_TRUE(g.hasEdge(0, 6));
     for (int i = 0; i < 7; i++) EXPECT_DOUBLE_EQ(g.getDegree()(i, i), 2.0);
 }
 
@@ -362,14 +425,19 @@ TEST(CreateCycle, TriangleIsCompleteGraph) {
 }
 
 TEST(CreateCycle, TwoNodesCollapsesToSingleEdge) {
-    EXPECT_EQ(edgeCount(Graph::createCycle(2)), 1);
+    EXPECT_EQ(Graph::createCycle(2).edgeCount(), 1);
+}
+
+TEST(CreateCycle, DegenerateSizes) {
+    EXPECT_EQ(Graph::createCycle(0).edgeCount(), 0);
+    EXPECT_EQ(Graph::createCycle(1).edgeCount(), 0);
 }
 
 TEST(CreateConnectedGraph, IsComplete) {
     for (int n : {1, 2, 5, 9}) {
         SCOPED_TRACE("n = " + std::to_string(n));
         Graph g = Graph::createConnectedGraph(n);
-        EXPECT_EQ(edgeCount(g), n * (n - 1) / 2);
+        EXPECT_EQ(g.edgeCount(), n * (n - 1) / 2);
         for (int i = 0; i < n; i++) EXPECT_DOUBLE_EQ(g.getDegree()(i, i), n - 1);
     }
 }
@@ -377,23 +445,23 @@ TEST(CreateConnectedGraph, IsComplete) {
 TEST(CreateBridgeGraph, IsTwoCliquesJoinedByOneEdge) {
     const int n = 10, h = 5;
     Graph g = Graph::createBridgeGraph(n);
-    EXPECT_EQ(edgeCount(g), 10 + 10 + 1);
-    EXPECT_TRUE(hasEdge(g, h - 1, h));
+    EXPECT_EQ(g.edgeCount(), 10 + 10 + 1);
+    EXPECT_TRUE(g.hasEdge(h - 1, h));
     int crossEdges = 0;
     for (int i = 0; i < h; i++)
         for (int j = h; j < n; j++)
-            if (hasEdge(g, i, j)) crossEdges++;
+            if (g.hasEdge(i, j)) crossEdges++;
     EXPECT_EQ(crossEdges, 1);
     for (int i = 0; i < h; i++)
-        for (int j = 0; j < i; j++) EXPECT_TRUE(hasEdge(g, i, j));
+        for (int j = 0; j < i; j++) EXPECT_TRUE(g.hasEdge(i, j));
     for (int i = h; i < n; i++)
-        for (int j = h; j < i; j++) EXPECT_TRUE(hasEdge(g, i, j));
+        for (int j = h; j < i; j++) EXPECT_TRUE(g.hasEdge(i, j));
 }
 
 TEST(CreateBridgeGraph, OddSizePutsExtraNodeInSecondClique) {
     Graph g = Graph::createBridgeGraph(7);  // cliques {0,1,2} and {3,4,5,6}
-    EXPECT_EQ(edgeCount(g), 3 + 6 + 1);
-    EXPECT_TRUE(hasEdge(g, 2, 3));
+    EXPECT_EQ(g.edgeCount(), 3 + 6 + 1);
+    EXPECT_TRUE(g.hasEdge(2, 3));
     EXPECT_GT(g.getFiedlerValue(), 0.0);
 }
 
@@ -408,12 +476,14 @@ TEST(CreateBridgeGraph, RemovingBridgeDisconnects) {
     EXPECT_EQ(zeroEigenvalueCount(h), 2);
 }
 
-TEST(CreateBridgeGraph, SingleNodeDoesNotCrash) {
-    testing::internal::CaptureStderr();
-    Graph g = Graph::createBridgeGraph(1);
-    testing::internal::GetCapturedStderr();
-    EXPECT_EQ(g.getN(), 1);
-    EXPECT_EQ(edgeCount(g), 0);
+TEST(CreateBridgeGraph, DegenerateSizes) {
+    EXPECT_EQ(Graph::createBridgeGraph(0).edgeCount(), 0);
+    Graph single = Graph::createBridgeGraph(1);
+    EXPECT_EQ(single.getN(), 1);
+    EXPECT_EQ(single.edgeCount(), 0);
+    Graph pair = Graph::createBridgeGraph(2);
+    EXPECT_EQ(pair.edgeCount(), 1);
+    EXPECT_TRUE(pair.hasEdge(0, 1));
 }
 
 // ---------------------------------------------------------------------------
@@ -421,7 +491,7 @@ TEST(CreateBridgeGraph, SingleNodeDoesNotCrash) {
 // ---------------------------------------------------------------------------
 
 TEST(CreateRandomGraph, ProbabilityZeroGivesEmptyGraph) {
-    EXPECT_EQ(edgeCount(Graph::createRandomGraph(20, 0.0)), 0);
+    EXPECT_EQ(Graph::createRandomGraph(20, 0.0).edgeCount(), 0);
 }
 
 TEST(CreateRandomGraph, ProbabilityOneGivesCompleteGraph) {
@@ -436,7 +506,7 @@ TEST(CreateRandomGraph, EdgeDensityTracksProbability) {
     const double maxEdges = n * (n - 1) / 2.0;
     for (double p : {0.1, 0.3, 0.7}) {
         SCOPED_TRACE("p = " + std::to_string(p));
-        double density = edgeCount(Graph::createRandomGraph(n, p)) / maxEdges;
+        double density = Graph::createRandomGraph(n, p).edgeCount() / maxEdges;
         EXPECT_NEAR(density, p, 0.05);
     }
 }
@@ -447,22 +517,34 @@ TEST(CreateRandomGraph, HasNoSelfLoops) {
     for (int i = 0; i < 15; i++) EXPECT_DOUBLE_EQ(L(i, i), 14.0);
 }
 
+TEST(CreateRandomGraph, SameSeedGivesSameGraph) {
+    Graph a = Graph::createRandomGraph(30, 0.3, 42);
+    Graph b = Graph::createRandomGraph(30, 0.3, 42);
+    EXPECT_TRUE(a.getLaplacian().isApprox(b.getLaplacian()));
+}
+
+TEST(CreateRandomGraph, DifferentSeedsGiveDifferentGraphs) {
+    Graph a = Graph::createRandomGraph(30, 0.5, 1);
+    Graph b = Graph::createRandomGraph(30, 0.5, 2);
+    EXPECT_FALSE(a.getLaplacian().isApprox(b.getLaplacian()));
+}
+
 // ---------------------------------------------------------------------------
 // Generators: hub
 // ---------------------------------------------------------------------------
 
 TEST(CreateHubGraph, AllZeroProbabilitiesGiveEmptyGraph) {
-    EXPECT_EQ(edgeCount(Graph::createHubGraph(15, 0.5, 0.0, 0.0)), 0);
+    EXPECT_EQ(Graph::createHubGraph(15, 0.5, 0.0, 0.0).edgeCount(), 0);
 }
 
 TEST(CreateHubGraph, NoHubsUsesNonHubProbability) {
-    EXPECT_EQ(edgeCount(Graph::createHubGraph(10, 0.0, 1.0, 0.0)), 45);
-    EXPECT_EQ(edgeCount(Graph::createHubGraph(10, 0.0, 0.0, 1.0)), 0);
+    EXPECT_EQ(Graph::createHubGraph(10, 0.0, 1.0, 0.0).edgeCount(), 45);
+    EXPECT_EQ(Graph::createHubGraph(10, 0.0, 0.0, 1.0).edgeCount(), 0);
 }
 
 TEST(CreateHubGraph, AllHubsUsesHubProbability) {
-    EXPECT_EQ(edgeCount(Graph::createHubGraph(10, 1.0, 0.0, 1.0)), 45);
-    EXPECT_EQ(edgeCount(Graph::createHubGraph(10, 1.0, 1.0, 0.0)), 0);
+    EXPECT_EQ(Graph::createHubGraph(10, 1.0, 0.0, 1.0).edgeCount(), 45);
+    EXPECT_EQ(Graph::createHubGraph(10, 1.0, 1.0, 0.0).edgeCount(), 0);
 }
 
 TEST(CreateHubGraph, EdgesOnlyTouchHubsWhenNonHubProbabilityIsZero) {
@@ -476,11 +558,17 @@ TEST(CreateHubGraph, EdgesOnlyTouchHubsWhenNonHubProbabilityIsZero) {
             for (int j = 0; j < i; j++) {
                 bool iHub = D(i, i) == n - 1;
                 bool jHub = D(j, j) == n - 1;
-                EXPECT_EQ(hasEdge(g, i, j), iHub || jHub)
+                EXPECT_EQ(g.hasEdge(i, j), iHub || jHub)
                     << "trial " << trial << ", edge " << i << "-" << j;
             }
         }
     }
+}
+
+TEST(CreateHubGraph, SameSeedGivesSameGraph) {
+    Graph a = Graph::createHubGraph(25, 0.2, 0.1, 0.9, 123);
+    Graph b = Graph::createHubGraph(25, 0.2, 0.1, 0.9, 123);
+    EXPECT_TRUE(a.getLaplacian().isApprox(b.getLaplacian()));
 }
 
 TEST(CreateHubGraph, HasValidStructure) {
