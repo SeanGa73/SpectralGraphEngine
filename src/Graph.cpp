@@ -5,7 +5,7 @@
 using namespace Eigen;
 using namespace std;
 
-    bool Graph::validEdge(int u, int v) const {return (u <= n-1) && (v <= n-1) && (u != v);}
+    bool Graph::validEdge(int u, int v) const {return (u >= 0) && (v >= 0) && (u <= n-1) && (v <= n-1) && (u != v);}
 
     Graph::Graph(int n): n(n) {
         this->n = n;

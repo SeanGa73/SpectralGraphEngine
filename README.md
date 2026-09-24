@@ -15,6 +15,17 @@ cd build
 cmake ..
 make
 ./SpectralSolver
+```
+
+## Running Tests
+Tests use GoogleTest. An installed copy is used if found; otherwise CMake downloads it automatically.
+```bash
+cd build
+cmake ..
+make
+ctest --output-on-failure
+```
+Pass `-DBUILD_TESTS=OFF` to `cmake` to skip building the tests.
 
 ## Example Outputs
 Generating Hub Graph (N=10)...
