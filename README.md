@@ -1,11 +1,26 @@
 # Spectral Graph Analysis Engine
 
+[![CI](https://github.com/SeanGa73/SpectralGraphEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/SeanGa73/SpectralGraphEngine/actions/workflows/ci.yml)
+
 # Elements 
 
-* Matrix Representations: Efficient computation of Adjacency and Degree matrices using `Eigen3`. 
-* Graph Laplacian: Implements L = D - A to capture graph topology, where D, A = Adjacency and Degree matrices.
-* Eigen-Decomposition: Solves Lx = (lambda) x to identify spectral properties.
-* Graph Generators: Procedural generation of Hub, Bridge, and Random graphs.
+* Matrix Representations: Dense Adjacency and Degree matrices using `Eigen3`.
+* Graph Laplacian: Implements L = D - A to capture graph topology, where D and A are the Degree and Adjacency matrices.
+* Eigen-Decomposition: Solves Lx = (lambda) x to identify spectral properties, including the Fiedler value (algebraic connectivity).
+* Connectivity: `isConnected(tol)` checks whether the Fiedler value is above a tolerance, so rounding noise on a disconnected graph is not mistaken for connectivity.
+* Graph Generators: Procedural generation of Path, Cycle, Complete, Bridge, Random, and Hub graphs. The random generators take an optional seed for reproducible output.
+
+## API at a glance
+```cpp
+Graph g = Graph::createRandomGraph(50, 0.1, /*seed=*/42);
+g.addEdge(0, 1);            // throws std::invalid_argument on self-loops or out-of-range nodes
+g.hasEdge(0, 1);            // true
+g.degree(0);                // number of neighbours
+g.edgeCount();              // number of undirected edges
+g.getLaplacian();           // L = D - A
+g.getFiedlerValue();        // second-smallest Laplacian eigenvalue
+g.isConnected();            // Fiedler value > 1e-9
+```
 
 
 ## Usage
@@ -25,7 +40,13 @@ cmake ..
 make
 ctest --output-on-failure
 ```
-Pass `-DBUILD_TESTS=OFF` to `cmake` to skip building the tests.
+Pass `-DBUILD_TESTS=OFF` to `cmake` to skip building the tests, or `-DWARNINGS_AS_ERRORS=ON` to fail the build on compiler warnings (CI does this).
+
+## Formatting
+Code is formatted with `clang-format` (version 18) using the repo's `.clang-format`:
+```bash
+clang-format -i include/*.h src/*.cpp tests/*.cpp
+```
 
 ## Example Outputs
 Generating Hub Graph (N=10)...
@@ -43,7 +64,7 @@ Generating Hub Graph (N=10)...
 Fiedler Value: 0
 Status: DISCONNECTED
 
-Note: Node 9 is disconnected from the graph, mathematically the Fiedler Value is zero. Intuitively, Fiedler Value gives a sense of connectivity and a disconnected node is consistent with a Fiedler Value of zero. 
+The hub graph is random, so your matrix will differ from run to run. Note: Node 9 is disconnected from the graph, mathematically the Fiedler Value is zero. Intuitively, Fiedler Value gives a sense of connectivity and a disconnected node is consistent with a Fiedler Value of zero. 
 
 Generating Bridge Graph (N=10)...
 --- Adjacency Matrix ---
