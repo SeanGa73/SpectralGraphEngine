@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project(SpectralGraphAnalysis)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -26,4 +26,29 @@ else()
 endif()
 
 # 3. Compile the source files from the "src" folder
-add_executable(SpectralSolver src/main.cpp src/Graph.cpp)
+add_library(GraphLib src/Graph.cpp)
+add_executable(SpectralSolver src/main.cpp)
+target_link_libraries(SpectralSolver PRIVATE GraphLib)
+
+# 4. Tests (uses an installed GoogleTest, otherwise downloads it at configure time)
+option(BUILD_TESTS "Build the unit test suite" ON)
+if(BUILD_TESTS)
+    find_package(GTest QUIET)
+    if(NOT GTest_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(
+            googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        )
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+    endif()
+
+    enable_testing()
+    add_executable(GraphTests tests/GraphTests.cpp)
+    target_link_libraries(GraphTests PRIVATE GraphLib GTest::gtest_main)
+
+    include(GoogleTest)
+    gtest_discover_tests(GraphTests)
+endif()
